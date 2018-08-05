@@ -1,0 +1,166 @@
+apply plugin: 'java'
+apply plugin: 'eclipse'
+
+version = '1.0.0'
+
+def APP_NAME = 'javawProperty'
+def FAT_JAR_BASE = 'release/javawProperty'
+def MAIN_CLASS = 'com.cm55.javawProperty.Main';
+
+// バージョン番号を保持するJavaファイル
+def VERSION_JAVA_FOLDER = 'src/com/cm55/javawProperty'
+def VERSION_JAVA_FILE = VERSION_JAVA_FOLDER + '/Version.java'
+
+
+// 全ソースがUTF-8であることを指定する
+tasks.withType(JavaCompile) {
+  options.encoding = 'UTF-8'
+}
+
+// Javaソースのバージョン
+sourceCompatibility = 1.6
+
+// 生成クラスのバージョン
+targetCompatibility = 1.6
+
+// 依存を取得する場合のリポジトリ
+repositories {
+  jcenter();
+  maven { 
+    url 'https://ysugimura.github.io/maven' 
+  }
+}
+
+// 公開設定
+task sourceJar(type: Jar) {
+  from sourceSets.main.allJava
+  classifier "sources"
+}
+
+// バージョンの設定
+task versionSet(type: Copy) { 
+  doFirst {
+    delete VERSION_JAVA_FILE
+  }
+  from 'Version.java'
+  into VERSION_JAVA_FOLDER
+  expand(version: version) 
+}
+
+/* ソースセットの指定 */
+sourceSets {
+  main {
+    java {
+      srcDir 'src'; exclude '**/*Test.java'
+    }
+    resources {
+      srcDir 'src'; exclude '**/*Test.java'
+    }
+  }
+}
+
+// このプロジェクトの依存ライブラリの指定
+dependencies {    
+// https://mvnrepository.com/artifact/net.java.dev.jna/jna-platform
+compile group: 'net.java.dev.jna', name: 'jna-platform', version: '4.5.2'
+}
+
+
+/* sourceSetsで同じフォルダを複数回指定すると、ご丁寧にもその分だけ
+ * classPathに入れてしまう。重複した分を削除する
+ */
+def removeDuplicatedSources = { cp->
+  def newList = new ArrayList()
+  def duplicated = new HashSet()
+  cp.entries.each { e-> 
+    if (e.kind != 'src') {
+      newList.add(e);
+      return
+    }
+    if (duplicated.contains(e.path))
+      return;
+    newList.add(e);
+    duplicated.add(e.path);          
+  }
+  cp.entries = newList;
+}
+
+// srcDir 'src'; exclude '**/*Test.java';のexcludeを削除する。
+// IDE上ではテストユニットが見えていて欲しい
+def removeAllExcludes = { cp->
+  cp.entries.findAll{ it.kind == 'src' }.each{
+    it.setExcludes(new ArrayList())  
+  }
+}
+
+/* 勝手に指定されたoutputを削除する。
+ * これがあると、勝手にAllow output folders for source foldersがONになってしまう。
+ */
+def removeOutputFoldersForSourceFolders = { cp->
+  cp.entries.findAll{ it.kind == 'src' }.each{
+    it.output = null
+  }
+}
+
+def addOtherProjects = { cp->
+  [
+//  '/github_depDetect', 
+//  '/github_fxwrapper',
+//  '/github_miniSerial'
+  ].each{
+    cp.entries.add(
+      new org.gradle.plugins.ide.eclipse.model.SourceFolder(it, null)
+    )
+  }
+}
+
+eclipse {
+  classpath {          
+    downloadSources=true
+    file  {
+      whenMerged {cp->
+        removeDuplicatedSources(cp)
+        removeOutputFoldersForSourceFolders(cp)
+        removeAllExcludes(cp)
+        addOtherProjects(cp)
+      }
+    }    
+  }     
+}
+
+compileJava.dependsOn(['versionSet'])
+
+task rel(type: Copy, dependsOn:'relJar') {
+  into GITHUB_DIST
+  from FAT_JAR_BASE + '-' + version + '.jar'
+}
+
+
+// fat-jarを作成する。これはテスト用に作成するもので難読化とは無関係
+task relJar(type: Jar, dependsOn:jar) {
+
+  // 出力先ファイル
+  destinationDir = file('.')
+  archiveName = FAT_JAR_BASE + '-' + version + '.jar'
+  
+  // 入力ファイル
+  from { 
+    configurations.compile.collect { zipTree(it) };
+  }
+  with jar
+  
+  // マニフェスト
+  manifest {
+    attributes 'Implementation-Title': APP_NAME, 'Implementation-Version': version
+    attributes 'Main-Class': MAIN_CLASS
+    exclude 'META-INF/DEPENDENCIES' 
+    exclude 'META-INF/LICENSE'
+    exclude 'META-INF/LICENSE.txt'   
+    exclude 'META-INF/NOTICE'     
+    exclude 'META-INF/NOTICE.txt' 
+    exclude 'META-INF/maven/**' 
+    exclude 'META-INF/services/**' 
+  }
+}
+
+
