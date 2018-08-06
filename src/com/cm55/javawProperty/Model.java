@@ -20,9 +20,9 @@ public class Model {
     String ext = ".jar";
     try {
       String progId = Advapi32Util.registryGetStringValue(HKEY_CLASSES_ROOT, ext, "");
-      System.out.println("" + progId);
+      //ystem.out.println("" + progId);
       String shellOpenCommand = Advapi32Util.registryGetStringValue(HKEY_CLASSES_ROOT, progId + "\\shell\\open\\command", "");
-      System.out.println(shellOpenCommand);
+      //ystem.out.println(shellOpenCommand);
       return shellOpenCommand;
     } catch (Win32Exception ex) {
       return null;

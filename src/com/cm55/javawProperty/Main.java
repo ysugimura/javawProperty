@@ -22,14 +22,21 @@ public class Main {
     
     String execCommand = Model.getExecCommand();
     if (execCommand != null) {    
-      label.setText("現在のJar実行コマンド：" + execCommand);
+      label.setText(Msg.get(Msg.現在のJar実行コマンド) + execCommand);
       Model.openPropertyWindow(execCommand);
     } else {
-      label.setText("Jar実行コマンドが特定できませんでした");
+      label.setText(Msg.get(Msg.Jar実行コマンドが特定できませんでした));
     }
   }
   
   public static void main(String[]args) {
+    Msg.ensureLocale();
+    String osName = System.getProperty("os.name").toLowerCase();
+    if (osName.indexOf("windows") < 0) {
+      JOptionPane.showMessageDialog(null, 
+          Msg.get(Msg.本アプリはWindows上でのみ動作します), "Error", JOptionPane.ERROR_MESSAGE);
+      System.exit(1);
+    }
     new Main();
   }
 }
